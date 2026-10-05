@@ -49,3 +49,82 @@ curl -X DELETE http://127.0.0.1:8000/products/1
 curl http://127.0.0.1:8000/products
 ```
 
+## Лабораторна робота №3 — MySQL та інформаційна система ресторанів (варіант 11)
+
+Варіант 11: **Інформаційна система ресторанів** — база даних для управління меню, замовленнями, клієнтами та бронюванням столів. Схема продубльована окремо на Symfony (Doctrine ORM) та на Laravel (Eloquent) — по 6 таблиць на кожен фреймворк (мінімум 5 за завданням):
+
+- `customers` — клієнти (name, phone, email)
+- `restaurant_tables` — столики залу (table_number, seats)
+- `menu_items` — позиції меню (name, description, price, category)
+- `reservations` — бронювання столика клієнтом (customer_id → customers, restaurant_table_id → restaurant_tables, reserved_for, guests_count, status)
+- `orders` — замовлення (customer_id → customers, restaurant_table_id → restaurant_tables, status, ordered_at)
+- `order_items` — позиції замовлення, зв'язок many-to-many між `orders` і `menu_items` (order_id, menu_item_id, quantity, unit_price)
+
+### 1–2) Встановлення MySQL і створення користувача
+
+На macOS (Homebrew):
+```
+brew install mysql
+brew services start mysql
+mysql -uroot
+```
+
+У консолі `mysql`:
+```sql
+CREATE DATABASE symfony_restaurant CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE laravel_restaurant CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'restaurant_app'@'localhost' IDENTIFIED WITH mysql_native_password BY 'RestaurantApp123!';
+GRANT ALL PRIVILEGES ON symfony_restaurant.* TO 'restaurant_app'@'localhost';
+GRANT ALL PRIVILEGES ON laravel_restaurant.* TO 'restaurant_app'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+(Схему й CRUD нижче перевірено саме з цим користувачем і цими двома базами — одна на кожен фреймворк.)
+
+### 3) Підключення Symfony/Laravel до бази
+
+- `Symfony/.env` — додано `DATABASE_URL` (доктрина, mysql, база `symfony_restaurant`); пакети `doctrine/orm`, `doctrine/doctrine-bundle`, `doctrine/doctrine-migrations-bundle` додані в `composer.json`. Після `composer install`:
+  ```
+  cd Symfony
+  php bin/console doctrine:migrations:migrate
+  ```
+- `Laravel/.env.example` — оновлено `DB_CONNECTION=mysql` і `DB_DATABASE=laravel_restaurant` (скопіюй у свій `.env`: `cp .env.example .env && php artisan key:generate`). Після цього:
+  ```
+  cd Laravel
+  php artisan migrate
+  ```
+
+**Важливо (виправлення багу з Lab 2):** під час тестування Lab 3 виявилось, що `POST/PUT/PATCH/DELETE` на `/products` у Laravel повертали `419 Page Expired`, бо `routes/web.php` проходить через middleware-групу `web` з CSRF-перевіркою, а наш JSON API не передає CSRF-токен. Виправлено в `bootstrap/app.php` — усі JSON-роути (`products`, `customers`, `tables`, `menu-items`, `reservations`, `orders`, `order-items`) явно виключені з CSRF-перевірки через `$middleware->validateCsrfTokens(except: [...])`. Це стосується і Lab 2 (тепер `POST /products` у Laravel теж працює).
+
+### 4) Сутності/моделі та зв'язки
+
+- `Symfony/src/Entity/*.php` + `Symfony/src/Repository/*.php` — 6 Doctrine-сутностей з атрибутами (`#[ORM\Entity]`, `#[ORM\ManyToOne]`, `#[ORM\OneToMany]`), міграція в `Symfony/migrations/`.
+- `Laravel/app/Models/*.php` — 6 Eloquent-моделей (`belongsTo`/`hasMany`), міграції в `Laravel/database/migrations/2026_10_05_*`.
+
+### 5) CRUD-контролери (окремий контролер на кожну таблицю)
+
+Обидва фреймворки: `GET /<ресурс>` (список), `GET /<ресурс>/{id}`, `POST /<ресурс>`, `PUT`/`PATCH /<ресурс>/{id}`, `DELETE /<ресурс>/{id}`:
+
+- `/customers` — `CustomerController`
+- `/tables` — `RestaurantTableController`
+- `/menu-items` — `MenuItemController`
+- `/reservations` — `ReservationController` (приймає `customerId`, `restaurantTableId`)
+- `/orders` — `OrderController` — приймає вкладений масив `items: [{menuItemId, quantity}, ...]` і одразу створює пов'язані `order_items` в одній транзакції
+- `/order-items` — `OrderItemController` — самостійний CRUD для позицій замовлення (окремо від вкладеного створення через `/orders`)
+
+### Перевірка вручну (приклад для Symfony; для Laravel — ті самі шляхи на порту `php artisan serve`)
+
+```
+curl -X POST http://127.0.0.1:8000/customers -H "Content-Type: application/json" -d '{"name":"Ivan Kuzmin","phone":"+380671234567","email":"ivan@example.com"}'
+curl -X POST http://127.0.0.1:8000/tables -H "Content-Type: application/json" -d '{"tableNumber":7,"seats":2}'
+curl -X POST http://127.0.0.1:8000/menu-items -H "Content-Type: application/json" -d '{"name":"Піца Маргарита","price":180,"category":"Основні страви"}'
+curl -X POST http://127.0.0.1:8000/reservations -H "Content-Type: application/json" -d '{"customerId":1,"restaurantTableId":1,"reservedFor":"2026-10-11T20:00:00+03:00","guestsCount":2}'
+curl -X POST http://127.0.0.1:8000/orders -H "Content-Type: application/json" -d '{"customerId":1,"restaurantTableId":1,"items":[{"menuItemId":1,"quantity":1}]}'
+curl http://127.0.0.1:8000/orders
+```
+
+Увесь функціонал (обидва фреймворки, усі 6 таблиць, включно зі зв'язками) перевірено end-to-end проти реального MySQL 8.0 перед комітом.
+
+### Git
+
+Результат лабораторної №3 — в окремій гілці `lab-3-restaurant` (не в `master`), як вимагає завдання.

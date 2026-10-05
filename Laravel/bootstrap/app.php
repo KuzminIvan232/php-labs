@@ -11,7 +11,24 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        // These routes are a JSON API (see routes/web.php) and are called
+        // without a CSRF token/session, so exempt them from CSRF checks.
+        $middleware->validateCsrfTokens(except: [
+            'products',
+            'products/*',
+            'customers',
+            'customers/*',
+            'tables',
+            'tables/*',
+            'menu-items',
+            'menu-items/*',
+            'reservations',
+            'reservations/*',
+            'orders',
+            'orders/*',
+            'order-items',
+            'order-items/*',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
