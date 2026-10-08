@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersAndPaginates;
 use App\Models\Customer;
 use App\Models\MenuItem;
 use App\Models\Order;
@@ -12,9 +13,31 @@ use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
-    public function getOrders(): mixed
+    use FiltersAndPaginates;
+
+    /**
+     * Lab 4: filtering by every field + page/itemsPerPage pagination.
+     *
+     * Supported query params: id, customerId, restaurantTableId, status (exact),
+     * orderedAt_min / orderedAt_max.
+     */
+    public function getOrders(Request $request): mixed
     {
-        return response()->json(['data' => Order::with('orderItems')->get()], Response::HTTP_OK);
+        $query = Order::with('orderItems');
+
+        $this->applyFilters($query, $request, [
+            'id' => ['type' => 'exact'],
+            'customerId' => ['type' => 'exact', 'column' => 'customer_id'],
+            'restaurantTableId' => ['type' => 'exact', 'column' => 'restaurant_table_id'],
+            'status' => ['type' => 'exact'],
+            'orderedAt' => ['type' => 'range', 'column' => 'ordered_at'],
+        ]);
+
+        $query->orderBy('id');
+
+        $result = $this->paginateQuery($query, $request);
+
+        return response()->json(['data' => $result['items'], 'meta' => $result['meta']], Response::HTTP_OK);
     }
 
     public function getOrderItem(string $id): mixed

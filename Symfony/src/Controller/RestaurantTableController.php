@@ -18,14 +18,17 @@ class RestaurantTableController extends AbstractController
     }
 
     #[Route('/tables', name: 'get_tables', methods: [Request::METHOD_GET])]
-    public function getTables(RestaurantTableRepository $tableRepository): JsonResponse
+    public function getTables(Request $request, RestaurantTableRepository $tableRepository): JsonResponse
     {
-        $tables = array_map(
-            static fn (RestaurantTable $table) => $table->toArray(),
-            $tableRepository->findAll()
-        );
+        $page = max(1, (int) $request->query->get('page', 1));
+        $itemsPerPage = max(1, (int) $request->query->get('itemsPerPage', 10));
 
-        return new JsonResponse(['data' => $tables], status: Response::HTTP_OK);
+        $result = $tableRepository->search($request->query->all(), $page, $itemsPerPage);
+
+        return new JsonResponse([
+            'data' => array_map(static fn (RestaurantTable $table) => $table->toArray(), $result['items']),
+            'meta' => $result['meta'],
+        ], status: Response::HTTP_OK);
     }
 
     #[Route('/tables/{id}', name: 'get_table_item', methods: [Request::METHOD_GET])]

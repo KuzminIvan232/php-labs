@@ -18,14 +18,17 @@ class MenuItemController extends AbstractController
     }
 
     #[Route('/menu-items', name: 'get_menu_items', methods: [Request::METHOD_GET])]
-    public function getMenuItems(MenuItemRepository $menuItemRepository): JsonResponse
+    public function getMenuItems(Request $request, MenuItemRepository $menuItemRepository): JsonResponse
     {
-        $menuItems = array_map(
-            static fn (MenuItem $menuItem) => $menuItem->toArray(),
-            $menuItemRepository->findAll()
-        );
+        $page = max(1, (int) $request->query->get('page', 1));
+        $itemsPerPage = max(1, (int) $request->query->get('itemsPerPage', 10));
 
-        return new JsonResponse(['data' => $menuItems], status: Response::HTTP_OK);
+        $result = $menuItemRepository->search($request->query->all(), $page, $itemsPerPage);
+
+        return new JsonResponse([
+            'data' => array_map(static fn (MenuItem $menuItem) => $menuItem->toArray(), $result['items']),
+            'meta' => $result['meta'],
+        ], status: Response::HTTP_OK);
     }
 
     #[Route('/menu-items/{id}', name: 'get_menu_item_item', methods: [Request::METHOD_GET])]

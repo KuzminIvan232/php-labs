@@ -2,15 +2,35 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersAndPaginates;
 use App\Models\RestaurantTable;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 class RestaurantTableController extends Controller
 {
-    public function getTables(): mixed
+    use FiltersAndPaginates;
+
+    /**
+     * Lab 4: filtering by every field + page/itemsPerPage pagination.
+     *
+     * Supported query params: id, tableNumber (exact), seats_min / seats_max.
+     */
+    public function getTables(Request $request): mixed
     {
-        return response()->json(['data' => RestaurantTable::all()], Response::HTTP_OK);
+        $query = RestaurantTable::query();
+
+        $this->applyFilters($query, $request, [
+            'id' => ['type' => 'exact'],
+            'tableNumber' => ['type' => 'exact', 'column' => 'table_number'],
+            'seats' => ['type' => 'range'],
+        ]);
+
+        $query->orderBy('id');
+
+        $result = $this->paginateQuery($query, $request);
+
+        return response()->json(['data' => $result['items'], 'meta' => $result['meta']], Response::HTTP_OK);
     }
 
     public function getTableItem(string $id): mixed

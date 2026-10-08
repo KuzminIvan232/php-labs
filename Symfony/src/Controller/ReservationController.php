@@ -20,14 +20,17 @@ class ReservationController extends AbstractController
     }
 
     #[Route('/reservations', name: 'get_reservations', methods: [Request::METHOD_GET])]
-    public function getReservations(ReservationRepository $reservationRepository): JsonResponse
+    public function getReservations(Request $request, ReservationRepository $reservationRepository): JsonResponse
     {
-        $reservations = array_map(
-            static fn (Reservation $reservation) => $reservation->toArray(),
-            $reservationRepository->findAll()
-        );
+        $page = max(1, (int) $request->query->get('page', 1));
+        $itemsPerPage = max(1, (int) $request->query->get('itemsPerPage', 10));
 
-        return new JsonResponse(['data' => $reservations], status: Response::HTTP_OK);
+        $result = $reservationRepository->search($request->query->all(), $page, $itemsPerPage);
+
+        return new JsonResponse([
+            'data' => array_map(static fn (Reservation $reservation) => $reservation->toArray(), $result['items']),
+            'meta' => $result['meta'],
+        ], status: Response::HTTP_OK);
     }
 
     #[Route('/reservations/{id}', name: 'get_reservation_item', methods: [Request::METHOD_GET])]

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersAndPaginates;
 use App\Models\Customer;
 use App\Models\Reservation;
 use App\Models\RestaurantTable;
@@ -10,9 +11,34 @@ use Illuminate\Http\Response;
 
 class ReservationController extends Controller
 {
-    public function getReservations(): mixed
+    use FiltersAndPaginates;
+
+    /**
+     * Lab 4: filtering by every field + page/itemsPerPage pagination.
+     *
+     * Supported query params: id, customerId, restaurantTableId, status (exact),
+     * reservedFor_min / reservedFor_max, guestsCount_min / guestsCount_max,
+     * createdAt_min / createdAt_max.
+     */
+    public function getReservations(Request $request): mixed
     {
-        return response()->json(['data' => Reservation::all()], Response::HTTP_OK);
+        $query = Reservation::query();
+
+        $this->applyFilters($query, $request, [
+            'id' => ['type' => 'exact'],
+            'customerId' => ['type' => 'exact', 'column' => 'customer_id'],
+            'restaurantTableId' => ['type' => 'exact', 'column' => 'restaurant_table_id'],
+            'reservedFor' => ['type' => 'range', 'column' => 'reserved_for'],
+            'guestsCount' => ['type' => 'range', 'column' => 'guests_count'],
+            'status' => ['type' => 'exact'],
+            'createdAt' => ['type' => 'range', 'column' => 'created_at'],
+        ]);
+
+        $query->orderBy('id');
+
+        $result = $this->paginateQuery($query, $request);
+
+        return response()->json(['data' => $result['items'], 'meta' => $result['meta']], Response::HTTP_OK);
     }
 
     public function getReservationItem(string $id): mixed

@@ -2,15 +2,38 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersAndPaginates;
 use App\Models\MenuItem;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 class MenuItemController extends Controller
 {
-    public function getMenuItems(): mixed
+    use FiltersAndPaginates;
+
+    /**
+     * Lab 4: filtering by every field + page/itemsPerPage pagination.
+     *
+     * Supported query params: id (exact), name, description, category (partial match),
+     * price_min / price_max.
+     */
+    public function getMenuItems(Request $request): mixed
     {
-        return response()->json(['data' => MenuItem::all()], Response::HTTP_OK);
+        $query = MenuItem::query();
+
+        $this->applyFilters($query, $request, [
+            'id' => ['type' => 'exact'],
+            'name' => ['type' => 'like'],
+            'description' => ['type' => 'like'],
+            'price' => ['type' => 'range'],
+            'category' => ['type' => 'like'],
+        ]);
+
+        $query->orderBy('id');
+
+        $result = $this->paginateQuery($query, $request);
+
+        return response()->json(['data' => $result['items'], 'meta' => $result['meta']], Response::HTTP_OK);
     }
 
     public function getMenuItemItem(string $id): mixed

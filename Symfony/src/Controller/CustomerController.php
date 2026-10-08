@@ -18,14 +18,17 @@ class CustomerController extends AbstractController
     }
 
     #[Route('/customers', name: 'get_customers', methods: [Request::METHOD_GET])]
-    public function getCustomers(CustomerRepository $customerRepository): JsonResponse
+    public function getCustomers(Request $request, CustomerRepository $customerRepository): JsonResponse
     {
-        $customers = array_map(
-            static fn (Customer $customer) => $customer->toArray(),
-            $customerRepository->findAll()
-        );
+        $page = max(1, (int) $request->query->get('page', 1));
+        $itemsPerPage = max(1, (int) $request->query->get('itemsPerPage', 10));
 
-        return new JsonResponse(['data' => $customers], status: Response::HTTP_OK);
+        $result = $customerRepository->search($request->query->all(), $page, $itemsPerPage);
+
+        return new JsonResponse([
+            'data' => array_map(static fn (Customer $customer) => $customer->toArray(), $result['items']),
+            'meta' => $result['meta'],
+        ], status: Response::HTTP_OK);
     }
 
     #[Route('/customers/{id}', name: 'get_customer_item', methods: [Request::METHOD_GET])]

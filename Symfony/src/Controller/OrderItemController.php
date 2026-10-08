@@ -20,14 +20,17 @@ class OrderItemController extends AbstractController
     }
 
     #[Route('/order-items', name: 'get_order_items', methods: [Request::METHOD_GET])]
-    public function getOrderItems(OrderItemRepository $orderItemRepository): JsonResponse
+    public function getOrderItems(Request $request, OrderItemRepository $orderItemRepository): JsonResponse
     {
-        $orderItems = array_map(
-            static fn (OrderItem $orderItem) => $orderItem->toArray(),
-            $orderItemRepository->findAll()
-        );
+        $page = max(1, (int) $request->query->get('page', 1));
+        $itemsPerPage = max(1, (int) $request->query->get('itemsPerPage', 10));
 
-        return new JsonResponse(['data' => $orderItems], status: Response::HTTP_OK);
+        $result = $orderItemRepository->search($request->query->all(), $page, $itemsPerPage);
+
+        return new JsonResponse([
+            'data' => array_map(static fn (OrderItem $orderItem) => $orderItem->toArray(), $result['items']),
+            'meta' => $result['meta'],
+        ], status: Response::HTTP_OK);
     }
 
     #[Route('/order-items/{id}', name: 'get_order_item_item', methods: [Request::METHOD_GET])]

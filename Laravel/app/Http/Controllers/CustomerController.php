@@ -2,15 +2,38 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersAndPaginates;
 use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 class CustomerController extends Controller
 {
-    public function getCustomers(): mixed
+    use FiltersAndPaginates;
+
+    /**
+     * Lab 4: filtering by every field + page/itemsPerPage pagination.
+     *
+     * Supported query params: id (exact), name, phone, email (partial match),
+     * createdAt_min / createdAt_max (ISO-8601).
+     */
+    public function getCustomers(Request $request): mixed
     {
-        return response()->json(['data' => Customer::all()], Response::HTTP_OK);
+        $query = Customer::query();
+
+        $this->applyFilters($query, $request, [
+            'id' => ['type' => 'exact'],
+            'name' => ['type' => 'like'],
+            'phone' => ['type' => 'like'],
+            'email' => ['type' => 'like'],
+            'createdAt' => ['type' => 'range', 'column' => 'created_at'],
+        ]);
+
+        $query->orderBy('id');
+
+        $result = $this->paginateQuery($query, $request);
+
+        return response()->json(['data' => $result['items'], 'meta' => $result['meta']], Response::HTTP_OK);
     }
 
     public function getCustomerItem(string $id): mixed

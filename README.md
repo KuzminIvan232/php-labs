@@ -128,3 +128,45 @@ curl http://127.0.0.1:8000/orders
 ### Git
 
 Результат лабораторної №3 — в окремій гілці `lab-3-restaurant` (не в `master`), як вимагає завдання.
+
+## Лабораторна робота №4 — Фільтрація та пагінація
+
+Завдання: для всіх сутностей (6 таблиць з Lab 3 — customers, tables, menu-items, reservations, orders, order-items — на кожному з двох фреймворків) додати фільтрацію по кожному полю таблиці та пагінацію з можливістю змінювати кількість елементів на сторінці (`itemsPerPage`). Результат — в окремій гілці `lab-4-filters-pagination` (відгалужена від `lab-3-restaurant`).
+
+### Підхід до фільтрації
+
+Для кожного поля обрано один із трьох типів фільтра залежно від його природи:
+
+- **exact** — точний збіг: `id`, зовнішні ключі (`customerId`, `restaurantTableId`, `orderId`, `menuItemId`), коди-перелічення (`status`, `tableNumber`)
+- **like** — частковий регістронезалежний пошук підрядка: `name`, `description`, `phone`, `email`, `category`
+- **range** — діапазон через `?поле_min=&поле_max=`: `price`, `seats`, `guestsCount`, `quantity`, `unitPrice`, `createdAt`, `reservedFor`, `orderedAt`
+
+У Symfony логіка винесена у спільний трейт `App\Repository\Filter\FilterablePaginationTrait`, підключений у всі 6 репозиторіїв (метод `search()` будує Doctrine `QueryBuilder` за декларативною картою полів). У Laravel — аналогічний трейт `App\Http\Controllers\Concerns\FiltersAndPaginates`, підключений у всі 6 контролерів (будує Eloquent `Builder`). Назви query-параметрів в обох фреймворках однакові (camelCase) і збігаються з іменами полів у JSON-відповідях/тілах запитів (наприклад, `customerId`, а не `customer_id`, навіть у Laravel, де в БД колонка `customer_id`).
+
+### Пагінація
+
+Query-параметри `page` (за замовчуванням 1) та `itemsPerPage` (за замовчуванням 10, максимум 100 — захист від надто великих вибірок за один запит). Відповідь списку тепер має вигляд:
+```json
+{
+  "data": [ ... ],
+  "meta": { "page": 1, "itemsPerPage": 10, "totalItems": 23, "totalPages": 3 }
+}
+```
+
+### Приклади
+
+```
+curl "http://127.0.0.1:8000/customers?name=iva&itemsPerPage=5&page=1"
+curl "http://127.0.0.1:8000/menu-items?price_min=100&price_max=200&category=dessert"
+curl "http://127.0.0.1:8000/reservations?customerId=1&status=confirmed"
+curl "http://127.0.0.1:8000/orders?restaurantTableId=2&orderedAt_min=2026-10-01T00:00:00%2B00:00"
+curl "http://127.0.0.1:8000/order-items?orderId=1&quantity_min=2"
+```
+
+Усі поля всіх 6 таблиць (Customer, RestaurantTable, MenuItem, Reservation, Order, OrderItem) в обох фреймворках перевірено end-to-end проти реального MySQL 8.0 перед комітом: пагінація (включно з обрізанням `itemsPerPage` до 100 і `page` до мінімум 1), partial/exact/range фільтри, фільтри по зовнішніх ключах через асоціації, та регресійна перевірка, що старі CRUD-ендпойнти (включно з Lab 2 `/products`) й далі працюють.
+
+Ендпойнт `/products` (Lab 2, in-memory масив, не сутність БД) залишено без змін — фільтрація й пагінація додані лише для 6 персистентних сутностей з Lab 3.
+
+### Git
+
+Результат лабораторної №4 — в окремій гілці `lab-4-filters-pagination`, відгалуженій від `lab-3-restaurant` (бо залежить від схеми й контролерів Lab 3, а не від `master`).
