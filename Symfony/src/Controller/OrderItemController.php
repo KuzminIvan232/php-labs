@@ -12,7 +12,11 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
+// Lab 5: direct order-line management (outside the nested POST /orders flow)
+// is staff-only across the board — every action here requires Manager/Admin.
+#[IsGranted('ROLE_MANAGER')]
 class OrderItemController extends AbstractController
 {
     public function __construct(private readonly EntityManagerInterface $entityManager)

@@ -10,7 +10,11 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
+// Lab 5: customer records are staff-only data (Manager/Admin); deleting one
+// is reserved for Admin (see deleteCustomer below).
+#[IsGranted('ROLE_MANAGER')]
 class CustomerController extends AbstractController
 {
     public function __construct(private readonly EntityManagerInterface $entityManager)
@@ -79,7 +83,9 @@ class CustomerController extends AbstractController
         return new JsonResponse(['data' => $customer->toArray()], status: Response::HTTP_OK);
     }
 
+    // Deleting a customer record is sensitive enough to reserve for Admin only.
     #[Route('/customers/{id}', name: 'delete_customer', methods: [Request::METHOD_DELETE])]
+    #[IsGranted('ROLE_ADMIN')]
     public function deleteCustomer(int $id, CustomerRepository $customerRepository): JsonResponse
     {
         $customer = $customerRepository->find($id);

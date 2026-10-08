@@ -170,3 +170,86 @@ curl "http://127.0.0.1:8000/order-items?orderId=1&quantity_min=2"
 ### Git
 
 Результат лабораторної №4 — в окремій гілці `lab-4-filters-pagination`, відгалуженій від `lab-3-restaurant` (бо залежить від схеми й контролерів Lab 3, а не від `master`).
+
+## Лабораторна робота №5 — Автентифікація та авторизація (JWT, 3 рівні доступу)
+
+Завдання: додати JWT-автентифікацію та авторизацію з трьома рівнями доступу (Client, Manager, Admin) з контролем доступу до всіх CRUD-операцій з Lab 3/4, в обох фреймворках. Результат — в окремій гілці `lab-5-jwt-auth`, відгалуженій від `lab-4-filters-pagination`.
+
+### Підхід
+
+Додано окрему сутність/модель `User` (таблиця `users`) — облікові записи для автентифікації, відокремлені від `Customer` (клієнти ресторану як бізнес-сутність з Lab 3, без логіна/пароля). У `User` є поле `role` з трьома значеннями: `client`, `manager`, `admin`.
+
+- **Реєстрація** (`POST /auth/register`) — публічний ендпойнт, завжди створює обліковий запис з роллю `client`, навіть якщо в тілі запиту передано інше значення `role` (запобігання підвищенню привілеїв при самостійній реєстрації).
+- **Логін** (`POST /auth/login`) — приймає `email`/`password`, повертає JWT з claim'ом `role`.
+- **Підвищення ролі** — лише Admin може змінити роль іншого користувача, через `PATCH /users/{id}/role` (`{"role": "manager"}`).
+
+Рівні доступу ієрархічні (Admin ⊇ Manager ⊇ Client): дозвіл, виданий ролі нижчого рівня, автоматично доступний і вищим. У Symfony це стандартний механізм `role_hierarchy` у `security.yaml` (`ROLE_ADMIN` → `ROLE_MANAGER` → `ROLE_CLIENT`). У Laravel немає вбудованого аналога, тому реалізовано вручну: константа-мапа рангів (`client=1, manager=2, admin=3`) в моделі `User` і метод `hasAtLeastRole()`, який порівнює ранги.
+
+### Матриця прав доступу
+
+| Дія | Client | Manager | Admin |
+|---|---|---|---|
+| Перегляд меню/столиків/товарів (`GET /menu-items`, `/tables`, `/products`) | ✅ | ✅ | ✅ |
+| Створення бронювання/замовлення (`POST /reservations`, `/orders`) | ✅ | ✅ | ✅ |
+| CRUD меню/столиків/товарів (`POST/PUT/PATCH/DELETE /menu-items`, `/tables`, `/products`) | ❌ | ✅ | ✅ |
+| CRUD клієнтів, перегляд/зміна бронювань і замовлень, order-items | ❌ | ✅ | ✅ |
+| Видалення клієнта (`DELETE /customers/{id}`) | ❌ | ❌ | ✅ |
+| Керування обліковими записами й ролями (`/users/*`) | ❌ | ❌ | ✅ |
+
+(Повний перелік ендпойнтів — у `Symfony/config/packages/security.yaml` та атрибутах `#[IsGranted]` на контролерах, і в `Laravel/routes/web.php` (групи `role:manager` / `role:admin`).)
+
+### Symfony — налаштування
+
+1. Пакети: `composer require symfony/security-bundle lexik/jwt-authentication-bundle`
+2. Реєстрація бандлів у `config/bundles.php`, конфіг `config/packages/security.yaml` і `config/packages/lexik_jwt_authentication.yaml`.
+3. Генерація RSA-ключової пари (RS256):
+   ```
+   cd Symfony
+   mkdir -p config/jwt
+   openssl genpkey -out config/jwt/private.pem -aes256 -algorithm rsa -pkeyopt rsa_keygen_bits:4096
+   openssl pkey -in config/jwt/private.pem -out config/jwt/public.pem -pubout
+   ```
+4. У `.env` — `JWT_SECRET_KEY`, `JWT_PUBLIC_KEY`, `JWT_PASSPHRASE` (пароль, вказаний при генерації приватного ключа), `JWT_TOKEN_TTL`.
+5. Міграція таблиці `users`: `php bin/console doctrine:migrations:migrate`.
+
+`config/jwt/*.pem` додано в `.gitignore` — ключі не комітяться, кожен розробник генерує свої локально.
+
+### Laravel — налаштування
+
+1. Пакет: `composer require tymon/jwt-auth`
+2. `php artisan vendor:publish --provider="Tymon\JWTAuth\Providers\LaravelServiceProvider"`
+3. `php artisan jwt:secret` — генерує `JWT_SECRET` у `.env` (HS256).
+4. Міграції: колонка `role` в `users` і — обов'язково — таблиця `cache` (`php artisan make:cache-table && php artisan migrate`), бо `tymon/jwt-auth` веде чорний список токенів через кеш, а `CACHE_STORE=database` в `.env` без цієї таблиці падає з 500-ю помилкою при будь-якому запиті з токеном.
+5. `config/auth.php` — додано guard `api` (`driver: jwt`).
+6. `bootstrap/app.php` — мідлвар-аліас `role` → `EnsureRole`, і **важливо**: `$middleware->redirectGuestsTo(fn () => null)` разом з `$exceptions->render(AuthenticationException::class, ...)`, щоб неавтентифікований запит без токена повертав чистий JSON 401, а не 500 (за замовчуванням Laravel намагається редіректити на іменований маршрут `login`, якого в цьому JSON-API немає, і падає з `RouteNotFoundException` ще до перевірки `expectsJson()`).
+
+### Приклад сценарію (однаковий для обох фреймворків, порт — відповідно до `php -S`/`php artisan serve`)
+
+```
+# 1. Реєстрація (завжди роль client)
+curl -X POST http://127.0.0.1:8000/auth/register -H "Content-Type: application/json" \
+  -d '{"email":"client@example.com","password":"Secret123!"}'
+
+# 2. Логін -> JWT
+curl -X POST http://127.0.0.1:8000/auth/login -H "Content-Type: application/json" \
+  -d '{"email":"client@example.com","password":"Secret123!"}'
+# => {"token":"eyJ..."}
+
+# 3. Запит з токеном
+curl http://127.0.0.1:8000/menu-items -H "Authorization: Bearer eyJ..."
+
+# 4. Без токена -> 401
+curl http://127.0.0.1:8000/menu-items
+
+# 5. Підвищення ролі (виконує Admin)
+curl -X PATCH http://127.0.0.1:8000/users/1/role -H "Authorization: Bearer <ADMIN_JWT>" \
+  -H "Content-Type: application/json" -d '{"role":"manager"}'
+```
+
+Перший Admin у системі створюється вручну (прямим записом у БД), оскільки жоден ендпойнт API не дозволяє призначити собі роль Admin самостійно — це свідоме обмеження, що запобігає ескалації привілеїв.
+
+Увесь функціонал (обидва фреймворки, усі три ролі, увесь перелік ендпойнтів з Lab 3/4, підвищення ролі, заборона підвищення привілеїв при реєстрації, коди 401/403/404/409) перевірено end-to-end проти реального MySQL 8.0 перед комітом.
+
+### Git
+
+Результат лабораторної №5 — в окремій гілці `lab-5-jwt-auth`, відгалуженій від `lab-4-filters-pagination` (бо продовжує код і схему з Lab 3/4, а не `master`).

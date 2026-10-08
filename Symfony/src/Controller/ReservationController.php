@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 class ReservationController extends AbstractController
 {
@@ -19,7 +20,10 @@ class ReservationController extends AbstractController
     {
     }
 
+    // Lab 5: listing/viewing all reservations is staff-only (Manager/Admin) —
+    // a Client only places reservations, it does not browse everyone else's.
     #[Route('/reservations', name: 'get_reservations', methods: [Request::METHOD_GET])]
+    #[IsGranted('ROLE_MANAGER')]
     public function getReservations(Request $request, ReservationRepository $reservationRepository): JsonResponse
     {
         $page = max(1, (int) $request->query->get('page', 1));
@@ -34,6 +38,7 @@ class ReservationController extends AbstractController
     }
 
     #[Route('/reservations/{id}', name: 'get_reservation_item', methods: [Request::METHOD_GET])]
+    #[IsGranted('ROLE_MANAGER')]
     public function getReservationItem(int $id, ReservationRepository $reservationRepository): JsonResponse
     {
         $reservation = $reservationRepository->find($id);
@@ -45,7 +50,9 @@ class ReservationController extends AbstractController
         return new JsonResponse(['data' => $reservation->toArray()], status: Response::HTTP_OK);
     }
 
+    // Lab 5: any authenticated role (Client and up) can book a reservation.
     #[Route('/reservations', name: 'post_reservations', methods: [Request::METHOD_POST])]
+    #[IsGranted('ROLE_CLIENT')]
     public function createReservation(
         Request $request,
         CustomerRepository $customerRepository,
@@ -76,7 +83,9 @@ class ReservationController extends AbstractController
         return new JsonResponse(['data' => $reservation->toArray()], status: Response::HTTP_CREATED);
     }
 
+    // Lab 5: changing/cancelling a reservation on someone's behalf is staff-only.
     #[Route('/reservations/{id}', name: 'update_reservation', methods: [Request::METHOD_PUT, Request::METHOD_PATCH])]
+    #[IsGranted('ROLE_MANAGER')]
     public function updateReservation(
         int $id,
         Request $request,
@@ -121,6 +130,7 @@ class ReservationController extends AbstractController
     }
 
     #[Route('/reservations/{id}', name: 'delete_reservation', methods: [Request::METHOD_DELETE])]
+    #[IsGranted('ROLE_MANAGER')]
     public function deleteReservation(int $id, ReservationRepository $reservationRepository): JsonResponse
     {
         $reservation = $reservationRepository->find($id);

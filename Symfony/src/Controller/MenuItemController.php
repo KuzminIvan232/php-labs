@@ -10,6 +10,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 class MenuItemController extends AbstractController
 {
@@ -17,7 +18,9 @@ class MenuItemController extends AbstractController
     {
     }
 
+    // Lab 5: menu browsing is open to any authenticated role (Client and up).
     #[Route('/menu-items', name: 'get_menu_items', methods: [Request::METHOD_GET])]
+    #[IsGranted('ROLE_CLIENT')]
     public function getMenuItems(Request $request, MenuItemRepository $menuItemRepository): JsonResponse
     {
         $page = max(1, (int) $request->query->get('page', 1));
@@ -32,6 +35,7 @@ class MenuItemController extends AbstractController
     }
 
     #[Route('/menu-items/{id}', name: 'get_menu_item_item', methods: [Request::METHOD_GET])]
+    #[IsGranted('ROLE_CLIENT')]
     public function getMenuItemItem(int $id, MenuItemRepository $menuItemRepository): JsonResponse
     {
         $menuItem = $menuItemRepository->find($id);
@@ -43,7 +47,9 @@ class MenuItemController extends AbstractController
         return new JsonResponse(['data' => $menuItem->toArray()], status: Response::HTTP_OK);
     }
 
+    // Lab 5: managing the menu (create/update/delete) requires Manager or Admin.
     #[Route('/menu-items', name: 'post_menu_items', methods: [Request::METHOD_POST])]
+    #[IsGranted('ROLE_MANAGER')]
     public function createMenuItem(Request $request): JsonResponse
     {
         $requestData = json_decode($request->getContent(), associative: true);
@@ -61,6 +67,7 @@ class MenuItemController extends AbstractController
     }
 
     #[Route('/menu-items/{id}', name: 'update_menu_item', methods: [Request::METHOD_PUT, Request::METHOD_PATCH])]
+    #[IsGranted('ROLE_MANAGER')]
     public function updateMenuItem(int $id, Request $request, MenuItemRepository $menuItemRepository): JsonResponse
     {
         $menuItem = $menuItemRepository->find($id);
@@ -82,6 +89,7 @@ class MenuItemController extends AbstractController
     }
 
     #[Route('/menu-items/{id}', name: 'delete_menu_item', methods: [Request::METHOD_DELETE])]
+    #[IsGranted('ROLE_MANAGER')]
     public function deleteMenuItem(int $id, MenuItemRepository $menuItemRepository): JsonResponse
     {
         $menuItem = $menuItemRepository->find($id);

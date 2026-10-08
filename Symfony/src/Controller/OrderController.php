@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 class OrderController extends AbstractController
 {
@@ -21,7 +22,9 @@ class OrderController extends AbstractController
     {
     }
 
+    // Lab 5: listing/viewing all orders is staff-only (Manager/Admin).
     #[Route('/orders', name: 'get_orders', methods: [Request::METHOD_GET])]
+    #[IsGranted('ROLE_MANAGER')]
     public function getOrders(Request $request, OrderRepository $orderRepository): JsonResponse
     {
         $page = max(1, (int) $request->query->get('page', 1));
@@ -36,6 +39,7 @@ class OrderController extends AbstractController
     }
 
     #[Route('/orders/{id}', name: 'get_order_item', methods: [Request::METHOD_GET])]
+    #[IsGranted('ROLE_MANAGER')]
     public function getOrderItem(int $id, OrderRepository $orderRepository): JsonResponse
     {
         $order = $orderRepository->find($id);
@@ -55,7 +59,9 @@ class OrderController extends AbstractController
      *   "items": [{"menuItemId": 3, "quantity": 2}, {"menuItemId": 5, "quantity": 1}]
      * }
      */
+    // Lab 5: any authenticated role (Client and up) can place an order.
     #[Route('/orders', name: 'post_orders', methods: [Request::METHOD_POST])]
+    #[IsGranted('ROLE_CLIENT')]
     public function createOrder(
         Request $request,
         CustomerRepository $customerRepository,
@@ -102,7 +108,9 @@ class OrderController extends AbstractController
         return new JsonResponse(['data' => $order->toArray()], status: Response::HTTP_CREATED);
     }
 
+    // Lab 5: changing order status/table on someone's behalf is staff-only.
     #[Route('/orders/{id}', name: 'update_order', methods: [Request::METHOD_PUT, Request::METHOD_PATCH])]
+    #[IsGranted('ROLE_MANAGER')]
     public function updateOrder(
         int $id,
         Request $request,
@@ -133,6 +141,7 @@ class OrderController extends AbstractController
     }
 
     #[Route('/orders/{id}', name: 'delete_order', methods: [Request::METHOD_DELETE])]
+    #[IsGranted('ROLE_MANAGER')]
     public function deleteOrder(int $id, OrderRepository $orderRepository): JsonResponse
     {
         $order = $orderRepository->find($id);

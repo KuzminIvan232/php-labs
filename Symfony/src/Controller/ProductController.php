@@ -7,6 +7,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 class ProductController extends AbstractController
 {
@@ -35,6 +36,7 @@ class ProductController extends AbstractController
      * @return JsonResponse
      */
     #[Route('/products', name: 'get_products', methods: [Request::METHOD_GET])]
+    #[IsGranted('ROLE_CLIENT')]
     public function getProducts(): JsonResponse
     {
         return new JsonResponse(['data' => self::PRODUCTS], status: Response::HTTP_OK);
@@ -45,6 +47,7 @@ class ProductController extends AbstractController
      * @return JsonResponse
      */
     #[Route('/products/{id}', name: 'get_product_item', methods: [Request::METHOD_GET])]
+    #[IsGranted('ROLE_CLIENT')]
     public function getProductItem(string $id): JsonResponse
     {
         $product = $this->getProductItemById(self::PRODUCTS, $id);
@@ -61,6 +64,7 @@ class ProductController extends AbstractController
      * @return JsonResponse
      */
     #[Route('/products', name: 'post_products', methods: [Request::METHOD_POST])]
+    #[IsGranted('ROLE_MANAGER')]
     public function createProduct(Request $request): JsonResponse
     {
         $requestData = json_decode($request->getContent(), associative: true);
@@ -85,6 +89,7 @@ class ProductController extends AbstractController
      * @return JsonResponse
      */
     #[Route('/products/{id}', name: 'update_product', methods: [Request::METHOD_PUT, Request::METHOD_PATCH])]
+    #[IsGranted('ROLE_MANAGER')]
     public function updateProduct(string $id, Request $request): JsonResponse
     {
         $product = $this->getProductItemById(self::PRODUCTS, $id);
@@ -112,6 +117,7 @@ class ProductController extends AbstractController
      * @return JsonResponse
      */
     #[Route('/products/{id}', name: 'delete_product', methods: [Request::METHOD_DELETE])]
+    #[IsGranted('ROLE_MANAGER')]
     public function deleteProduct(string $id): JsonResponse
     {
         $product = $this->getProductItemById(self::PRODUCTS, $id);

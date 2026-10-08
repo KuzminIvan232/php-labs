@@ -10,6 +10,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 class RestaurantTableController extends AbstractController
 {
@@ -17,7 +18,9 @@ class RestaurantTableController extends AbstractController
     {
     }
 
+    // Lab 5: any authenticated role (Client and up) can browse tables.
     #[Route('/tables', name: 'get_tables', methods: [Request::METHOD_GET])]
+    #[IsGranted('ROLE_CLIENT')]
     public function getTables(Request $request, RestaurantTableRepository $tableRepository): JsonResponse
     {
         $page = max(1, (int) $request->query->get('page', 1));
@@ -32,6 +35,7 @@ class RestaurantTableController extends AbstractController
     }
 
     #[Route('/tables/{id}', name: 'get_table_item', methods: [Request::METHOD_GET])]
+    #[IsGranted('ROLE_CLIENT')]
     public function getTableItem(int $id, RestaurantTableRepository $tableRepository): JsonResponse
     {
         $table = $tableRepository->find($id);
@@ -43,7 +47,9 @@ class RestaurantTableController extends AbstractController
         return new JsonResponse(['data' => $table->toArray()], status: Response::HTTP_OK);
     }
 
+    // Lab 5: managing tables (create/update/delete) requires Manager or Admin.
     #[Route('/tables', name: 'post_tables', methods: [Request::METHOD_POST])]
+    #[IsGranted('ROLE_MANAGER')]
     public function createTable(Request $request): JsonResponse
     {
         $requestData = json_decode($request->getContent(), associative: true);
@@ -59,6 +65,7 @@ class RestaurantTableController extends AbstractController
     }
 
     #[Route('/tables/{id}', name: 'update_table', methods: [Request::METHOD_PUT, Request::METHOD_PATCH])]
+    #[IsGranted('ROLE_MANAGER')]
     public function updateTable(int $id, Request $request, RestaurantTableRepository $tableRepository): JsonResponse
     {
         $table = $tableRepository->find($id);
@@ -78,6 +85,7 @@ class RestaurantTableController extends AbstractController
     }
 
     #[Route('/tables/{id}', name: 'delete_table', methods: [Request::METHOD_DELETE])]
+    #[IsGranted('ROLE_MANAGER')]
     public function deleteTable(int $id, RestaurantTableRepository $tableRepository): JsonResponse
     {
         $table = $tableRepository->find($id);
